@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Diary Card Particle Sandbox</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #080810;
+            color: #fff;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            z-index: 1;
+            cursor: crosshair;
+        }
+
+        .overlay-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end; /* Dock card at bottom */
+            align-items: center;
+        }
+
+        /* Side Controls Layout */
+        .side-panel {
+            pointer-events: auto;
+            position: absolute;
+            top: 16px;
+            background: rgba(10, 10, 18, 0.78);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 10px;
+            padding: 8px 6px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            width: 82px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        }
+
+        .side-panel.left-panel {
+            left: 12px;
+        }
+
+        .side-panel.right-panel {
+            right: 12px;
+        }
+
+        .panel-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            width: 100%;
+        }
+
+        .panel-label {
+            font-size: 9px;
+            color: #94a3b8;
+            letter-spacing: 0.6px;
+            font-weight: bold;
+            text-transform: uppercase;
+            text-align: center;
+            margin-bottom: 2px;
+        }
+
+        .pill-btn {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: #64748b;
+            padding: 6px 4px;
+            border-radius: 6px;
+            font-size: 10px;
+            cursor: not-allowed;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            white-space: nowrap;
+            width: 100%;
+        }
+
+        .pill-btn.unlocked {
+            color: #cbd5e1;
+            cursor: pointer;
+        }
+
+        .pill-btn.active {
+            background: rgba(112, 161, 255, 0.25);
+            border-color: #70a1ff;
+            color: #fff;
+        }
+
+        .pill-btn.emitter-active {
+            background: rgba(46, 213, 115, 0.25);
+            border-color: #2ed573;
+            color: #2ed573;
+        }
+
+        .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+        .clear-btn {
+            pointer-events: auto;
+            background: rgba(255, 71, 87, 0.15);
+            border: 1px solid rgba(255, 71, 87, 0.3);
+            color: #ff4757;
+            padding: 6px 4px;
+            border-radius: 6px;
+            font-size: 10px;
+            cursor: pointer;
+            width: 100%;
+            text-align: center;
+        }
+
+        /* Bottom Anchored Diary Card (Quiz/Form) */
+        .diary-card {
+            pointer-events: auto;
+            max-width: 500px;
+            width: calc(100% - 190px); /* Leaves gap for left/right panels */
+            margin: 0 auto;
+            background: rgba(15, 15, 25, 0.92);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border-radius: 12px;
+            padding: 10px 14px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.7);
+            max-height: 40vh;
+            overflow-y: auto;
+        }
+
+        .diary-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 4px;
+            margin-bottom: 6px;
+        }
+
+        .diary-title {
+            font-size: 11px;
+            font-weight: bold;
+            color: #70a1ff;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+
+        .diary-day {
+            font-size: 10px;
+            color: #94a3b8;
+        }
+
+        .diary-field {
+            margin-bottom: 6px;
+        }
+
+        .diary-label {
+            display: block;
+            font-size: 10px;
+            color: #e2e8f0;
+            margin-bottom: 3px;
+        }
+
+        .rating-scale {
+            display: flex;
+            gap: 4px;
+        }
+
+        .rate-btn {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #cbd5e1;
+            padding: 3px 0;
+            border-radius: 4px;
+            font-size: 10px;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .rate-btn.selected {
+            background: #70a1ff;
+            color: #000;
+            border-color: #70a1ff;
+            font-weight: bold;
+        }
+
+        .tags-row {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        .tag-btn {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #cbd5e1;
+            padding: 3px 6px;
+            border-radius: 5px;
+            font-size: 9px;
+            cursor: pointer;
+        }
+
+        .tag-btn.selected {
+            background: rgba(46, 213, 115, 0.25);
+            border-color: #2ed573;
+            color: #2ed573;
+        }
+
+        .submit-card-btn {
+            width: 100%;
+            background: #2ed573;
+            color: #000;
+            font-weight: bold;
+            border: none;
+            padding: 6px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 10px;
+            margin-top: 4px;
+        }
+
+        .stage-complete-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .next-stage-btn {
+            background: #2ed573;
+            color: #000;
+            font-weight: bold;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 10px;
+        }
+
+        @media (max-width: 500px) {
+            .diary-card {
+                width: 100%;
+                max-height: 48vh;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="canvas"></canvas>
+
+    <div class="overlay-layer">
+        <!-- Tools Left Side Panel -->
+        <div class="side-panel left-panel">
+            <span class="panel-label">Tools</span>
+            <div id="toolsPills" class="panel-group"></div>
+            <button id="emitterToggle" class="pill-btn unlocked emitter-active" onclick="toggleEmitter()">Emit: ON</button>
+        </div>
+
+        <!-- Elements Right Side Panel -->
+        <div class="side-panel right-panel">
+            <span class="panel-label">Type</span>
+            <div id="elementsPills" class="panel-group"></div>
+            <button class="clear-btn" onclick="particles = []">Clear</button>
+        </div>
+
+        <!-- Bottom Center Quiz Card -->
+        <div class="diary-card" id="diaryCard">
+            <!-- Dynamic Content -->
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. DIARY CARD & STAGES
+        // ==========================================
+        const STAGES = [
+            {
+                day: "Entry 1: Grounding & Centering",
+                ratingsLabel: "Emotional Regulation (0 = Unregulated, 5 = Wise Mind)",
+                events: ["Interpersonal Conflict", "Work / Task Stress", "Internal Thought Trigger"],
+                mindstates: ["Emotion Mind", "Reasonable Mind", "Wise Mind"],
+                skills: ["Observe", "Describe", "Participate"],
+                toolId: 'attract',
+                particleId: 0
+            },
+            {
+                day: "Entry 2: Distress Tolerance",
+                ratingsLabel: "Regulation Under Distress (0-5)",
+                events: ["Unexpected Change", "Boundary Violation", "Physical Fatigue"],
+                mindstates: ["High Arousal", "Overwhelmed", "Regulated"],
+                skills: ["TIPP", "STOP", "Radical Acceptance"],
+                toolId: 'repel',
+                particleId: 1
+            },
+            {
+                day: "Entry 3: Emotion Regulation",
+                ratingsLabel: "Emotional Balance Score (0-5)",
+                events: ["Perceived Rejection", "Task Overload", "Unmet Expectation"],
+                mindstates: ["Impulsive", "Checking Facts", "Balanced"],
+                skills: ["Check the Facts", "Opposite Action", "ABC PLEASE"],
+                toolId: 'disrupt',
+                particleId: 2
+            },
+            {
+                day: "Entry 4: Interpersonal & Creation",
+                ratingsLabel: "Clarity & Boundary Score (0-5)",
+                events: ["Setting Boundary", "Asking for Support", "Saying No"],
+                mindstates: ["Passive", "Aggressive", "Assertive"],
+                skills: ["DEAR MAN", "GIVE", "FAST"],
+                toolId: 'vortex',
+                particleId: 3
+            }
+        ];
+
+        const TOOLS = [
+            { id: 'attract', name: 'Gravity', unlocked: true },
+            { id: 'repel', name: 'Repulsor', unlocked: false },
+            { id: 'disrupt', name: 'Shock', unlocked: false },
+            { id: 'vortex', name: 'Vortex', unlocked: false }
+        ];
+
+        const PARTICLE_TYPES = [
+            { id: 0, name: "Plasma", color: "#70a1ff", mass: 1.0, radius: 3.5, baseLife: 900, unlocked: true },
+            { id: 1, name: "Void", color: "#a55eea", mass: 4.5, radius: 6.0, baseLife: 1200, unlocked: false },
+            { id: 2, name: "Volt", color: "#eccc68", mass: 0.4, radius: 2.5, baseLife: 750, unlocked: false },
+            { id: 3, name: "Catalyst", color: "#ff6b81", mass: 2.0, radius: 4.0, baseLife: 1000, unlocked: false }
+        ];
+
+        let currentStage = 0;
+        let isPracticing = false;
+        let activeTool = 'attract';
+        let activeSpawnType = 0;
+        let emitterEnabled = true;
+        let emotionLifeMultiplier = 1.0;
+
+        let selectedRating = null;
+        let selectedEvent = null;
+        let selectedState = null;
+        let selectedSkill = null;
+
+        function toggleEmitter() {
+            emitterEnabled = !emitterEnabled;
+            const btn = document.getElementById('emitterToggle');
+            btn.textContent = `Emit: ${emitterEnabled ? 'ON' : 'OFF'}`;
+            btn.className = `pill-btn unlocked ${emitterEnabled ? 'emitter-active' : ''}`;
+        }
+
+        function renderDiaryCard() {
+            const card = document.getElementById('diaryCard');
+
+            if (currentStage >= STAGES.length) {
+                card.innerHTML = `
+                    <div class="diary-header">
+                        <span class="diary-title">Diary Log Complete</span>
+                        <span class="diary-day">Wise Mind Sandbox Active</span>
+                    </div>
+                    <p style="font-size:10px; color:#aaa; margin-bottom:6px;">Current Global Particle Longevity Multiplier: <b style="color:#2ed573;">${emotionLifeMultiplier.toFixed(1)}x</b></p>
+                    <p style="font-size:10px; color:#2ed573;">Touch and drag across the screen to freely experiment with all particle physics.</p>
+                `;
+                return;
+            }
+
+            const stage = STAGES[currentStage];
+
+            if (!isPracticing) {
+                card.innerHTML = `
+                    <div class="diary-header">
+                        <span class="diary-title">DBT Diary Card</span>
+                        <span class="diary-day">${stage.day}</span>
+                    </div>
+                    
+                    <div class="diary-field">
+                        <label class="diary-label">${stage.ratingsLabel}</label>
+                        <div class="rating-scale">
+                            ${[0,1,2,3,4,5].map(val => `
+                                <button class="rate-btn ${selectedRating === val ? 'selected' : ''}" onclick="selectRating(${val})">${val}</button>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div class="diary-field">
+                        <label class="diary-label">Prompting Event / Trigger</label>
+                        <div class="tags-row">
+                            ${stage.events.map(ev => `
+                                <button class="tag-btn ${selectedEvent === ev ? 'selected' : ''}" onclick="selectEvent('${ev}')">${ev}</button>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div class="diary-field">
+                        <label class="diary-label">Mindstate / Awareness</label>
+                        <div class="tags-row">
+                            ${stage.mindstates.map(state => `
+                                <button class="tag-btn ${selectedState === state ? 'selected' : ''}" onclick="selectState('${state}')">${state}</button>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div class="diary-field">
+                        <label class="diary-label">Primary Skill Applied</label>
+                        <div class="tags-row">
+                            ${stage.skills.map(sk => `
+                                <button class="tag-btn ${selectedSkill === sk ? 'selected' : ''}" onclick="selectSkill('${sk}')">${sk}</button>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <button class="submit-card-btn" onclick="submitDiaryEntry()">Log Entry & Calculate Longevity</button>
+                `;
+            } else {
+                card.innerHTML = `
+                    <div class="diary-header">
+                        <span class="diary-title">Entry Logged</span>
+                        <span class="diary-day">${stage.day}</span>
+                    </div>
+                    <p style="font-size:10px; color:#e2e8f0; margin-bottom:4px;">Particle Life Multiplier Boosted to: <b style="color:#2ed573;">${emotionLifeMultiplier.toFixed(1)}x</b></p>
+                    <p style="font-size:9px; color:#94a3b8; margin-bottom:6px;">Unlocked Tool: <b>${TOOLS.find(t=>t.id===stage.toolId).name}</b> | Unlocked Matrix Type: <b>${PARTICLE_TYPES[stage.particleId].name}</b></p>
+                    <div class="stage-complete-bar">
+                        <span style="font-size:9px; color:#2ed573;">✔ Touch / Drag to test interaction physics</span>
+                        <button class="next-stage-btn" onclick="advanceToNextStage()">Next Entry →</button>
+                    </div>
+                `;
+            }
+        }
+
+        function selectRating(val) { selectedRating = val; renderDiaryCard(); }
+        function selectEvent(ev) { selectedEvent = ev; renderDiaryCard(); }
+        function selectState(st) { selectedState = st; renderDiaryCard(); }
+        function selectSkill(sk) { selectedSkill = sk; renderDiaryCard(); }
+
+        function submitDiaryEntry() {
+            if (selectedRating === null || !selectedEvent || !selectedState || !selectedSkill) {
+                alert("Please complete all sections of the diary entry.");
+                return;
+            }
+
+            let baseMult = 0.7 + (selectedRating * 0.2); 
+            if (selectedState === 'Wise Mind' || selectedState === 'Balanced' || selectedState === 'Regulated') {
+                baseMult += 0.35;
+            }
+            emotionLifeMultiplier = Math.min(baseMult, 2.2);
+
+            const stage = STAGES[currentStage];
+            TOOLS.find(t => t.id === stage.toolId).unlocked = true;
+            PARTICLE_TYPES[stage.particleId].unlocked = true;
+            activeTool = stage.toolId;
+            activeSpawnType = stage.particleId;
+
+            isPracticing = true;
+            renderControls();
+            renderDiaryCard();
+        }
+
+        function advanceToNextStage() {
+            currentStage++;
+            isPracticing = false;
+            selectedRating = null;
+            selectedEvent = null;
+            selectedState = null;
+            selectedSkill = null;
+            renderDiaryCard();
+        }
+
+        function renderControls() {
+            const tContainer = document.getElementById('toolsPills');
+            tContainer.innerHTML = '';
+            TOOLS.forEach(t => {
+                const btn = document.createElement('div');
+                btn.className = `pill-btn ${t.unlocked ? 'unlocked' : ''} ${t.id === activeTool ? 'active' : ''}`;
+                btn.textContent = t.name;
+                if (t.unlocked) btn.onclick = () => { activeTool = t.id; renderControls(); };
+                tContainer.appendChild(btn);
+            });
+
+            const eContainer = document.getElementById('elementsPills');
+            eContainer.innerHTML = '';
+            PARTICLE_TYPES.forEach(pt => {
+                const btn = document.createElement('div');
+                btn.className = `pill-btn ${pt.unlocked ? 'unlocked' : ''} ${pt.id === activeSpawnType ? 'active' : ''}`;
+                btn.innerHTML = `<span class="dot" style="background:${pt.color}"></span>${pt.name}`;
+                if (pt.unlocked) btn.onclick = () => { activeSpawnType = pt.id; renderControls(); };
+                eContainer.appendChild(btn);
+            });
+        }
+
+        // ==========================================
+        // 2. PHYSICS ENGINE & DYNAMIC INTERACTION DECAY
+        // ==========================================
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        const inputState = { x: canvas.width / 2, y: canvas.height / 2, active: false };
+
+        canvas.addEventListener('mousemove', e => {
+            inputState.x = e.clientX;
+            inputState.y = e.clientY;
+        });
+        canvas.addEventListener('mousedown', e => {
+            inputState.x = e.clientX;
+            inputState.y = e.clientY;
+            inputState.active = true;
+        });
+        window.addEventListener('mouseup', () => inputState.active = false);
+
+        function updateTouchPos(e) {
+            if (e.touches && e.touches.length > 0) {
+                inputState.x = e.touches[0].clientX;
+                inputState.y = e.touches[0].clientY;
+            }
+        }
+
+        canvas.addEventListener('touchstart', e => {
+            e.preventDefault();
+            updateTouchPos(e);
+            inputState.active = true;
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', e => {
+            e.preventDefault();
+            updateTouchPos(e);
+        }, { passive: false });
+
+        window.addEventListener('touchend', () => inputState.active = false);
+
+        const INTERACTION_MATRIX = {
+            0: { 0: -0.2, 1: 0.6, 2: -0.3, 3: 0.8 },
+            1: { 0: 0.8, 1: -0.5, 2: -1.2, 3: 0.4 },
+            2: { 0: 0.5, 1: -1.5, 2: -0.1, 3: -0.6 },
+            3: { 0: -0.9, 1: 0.3, 2: 0.8, 3: -0.8 }
+        };
+
+        class Particle {
+            constructor(x, y, type) {
+                this.x = x;
+                this.y = y;
+                this.type = type;
+                this.cfg = PARTICLE_TYPES[type];
+                this.mass = this.cfg.mass;
+                this.vx = (Math.random() - 0.5) * 3;
+                this.vy = (Math.random() - 0.5) * 3;
+                this.life = 0;
+                this.maxLife = (this.cfg.baseLife + Math.random() * 300) * emotionLifeMultiplier;
+                this.decayFactor = 1.0; 
+                this.dead = false;
+            }
+
+            applyForces(allParticles) {
+                this.decayFactor = 1.0;
+                let neighborCount = 0;
+
+                for (let other of allParticles) {
+                    if (other === this || other.dead) continue;
+
+                    const dx = other.x - this.x;
+                    const dy = other.y - this.y;
+                    const distSq = dx * dx + dy * dy;
+                    const maxRadius = 160;
+
+                    if (distSq < maxRadius * maxRadius && distSq > 4) {
+                        const dist = Math.sqrt(distSq);
+                        const forceStrength = INTERACTION_MATRIX[this.type][other.type];
+                        const force = (forceStrength * (1 - dist / maxRadius)) / this.mass;
+
+                        this.vx += (dx / dist) * force * 0.35;
+                        this.vy += (dy / dist) * force * 0.35;
+
+                        if (dist < 80) {
+                            neighborCount++;
+                            if (forceStrength > 0) {
+                                this.decayFactor *= 0.88;
+                            } else {
+                                this.decayFactor *= 1.12;
+                            }
+                        }
+                    }
+                }
+
+                if (neighborCount === 0) {
+                    this.decayFactor *= 1.3;
+                }
+            }
+
+            applyInputTool() {
+                if (!inputState.active) return;
+
+                const dx = inputState.x - this.x;
+                const dy = inputState.y - this.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const toolRadius = 240;
+
+                if (dist < toolRadius && dist > 1) {
+                    const nx = dx / dist;
+                    const ny = dy / dist;
+
+                    if (activeTool === 'attract') {
+                        const f = ((1 - dist / toolRadius) * 0.7) / this.mass;
+                        this.vx += nx * f;
+                        this.vy += ny * f;
+                        this.decayFactor *= 0.75;
+                    } else if (activeTool === 'repel') {
+                        const f = ((1 - dist / toolRadius) * 1.0) / this.mass;
+                        this.vx -= nx * f;
+                        this.vy -= ny * f;
+                        this.decayFactor *= 1.25;
+                    } else if (activeTool === 'disrupt') {
+                        if (dist < 120) {
+                            this.vx += ((Math.random() - 0.5) * 12) / this.mass;
+                            this.vy += ((Math.random() - 0.5) * 12) / this.mass;
+                            this.decayFactor *= 1.6;
+                        }
+                    } else if (activeTool === 'vortex') {
+                        const f = ((1 - dist / toolRadius) * 1.2) / this.mass;
+                        this.vx += -ny * f;
+                        this.vy += nx * f;
+                        this.decayFactor *= 0.85;
+                    }
+                }
+            }
+
+            update() {
+                const effectiveDecay = Math.max(0.2, Math.min(3.0, this.decayFactor));
+                this.life += effectiveDecay;
+
+                if (this.life >= this.maxLife) {
+                    this.dead = true;
+                    return;
+                }
+
+                this.vx *= 0.95;
+                this.vy *= 0.95;
+
+                this.x += this.vx;
+                this.y += this.vy;
+
+                if (this.x < 10) { this.x = 10; this.vx *= -0.8; }
+                if (this.x > canvas.width - 10) { this.x = canvas.width - 10; this.vx *= -0.8; }
+                if (this.y < 10) { this.y = 10; this.vy *= -0.8; }
+                if (this.y > canvas.height - 10) { this.y = canvas.height - 10; this.vy *= -0.8; }
+            }
+
+            draw() {
+                const remainingRatio = 1 - (this.life / this.maxLife);
+                const alpha = Math.max(0, Math.min(1, remainingRatio));
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.cfg.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.cfg.color;
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        function seedSwarm() {
+            for (let i = 0; i < 60; i++) {
+                particles.push(new Particle(
+                    Math.random() * (canvas.width - 80) + 40,
+                    Math.random() * (canvas.height - 80) + 40,
+                    0
+                ));
+            }
+        }
+
+        function animate() {
+            ctx.fillStyle = 'rgba(8, 8, 16, 0.28)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (inputState.active && emitterEnabled && particles.length < 400) {
+                for (let i = 0; i < 2; i++) {
+                    particles.push(new Particle(
+                        inputState.x + (Math.random() - 0.5) * 20,
+                        inputState.y + (Math.random() - 0.5) * 20,
+                        activeSpawnType
+                    ));
+                }
+            }
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.applyForces(particles);
+                p.applyInputTool();
+                p.update();
+
+                if (p.dead) {
+                    particles.splice(i, 1);
+                } else {
+                    p.draw();
+                }
+            }
+
+            if (inputState.active) {
+                ctx.beginPath();
+                ctx.arc(inputState.x, inputState.y, 40, 0, Math.PI * 2);
+                ctx.strokeStyle = activeTool === 'attract' ? 'rgba(112, 161, 255, 0.6)' :
+                                  activeTool === 'repel' ? 'rgba(255, 107, 129, 0.6)' :
+                                  activeTool === 'disrupt' ? 'rgba(236, 204, 104, 0.8)' : 'rgba(165, 94, 234, 0.8)';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        renderControls();
+        renderDiaryCard();
+        seedSwarm();
+        animate();
+    </script>
+</body>
+</html>
